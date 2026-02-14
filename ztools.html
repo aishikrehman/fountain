@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>জুরি - ক্লায়েন্ট সাইড ট্র্যাকার</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@300;400;500;600;700&family=Noto+Serif+Bengali:wght@400;500&display=swap');
+        
+        body { font-family: 'Noto Sans Bengali', 'Inter', sans-serif; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .pulse-dot {
+            height: 8px; width: 8px; background-color: #10b981; border-radius: 50%; display: inline-block;
+            animation: pulse-animation 1.5s infinite;
+        }
+        @keyframes pulse-animation { 0% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.5); } 100% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); } }
+        .tab-btn.active { background-color: #4f46e5; color: white; border-color: #4f46e5; }
+        
+        .user-row { cursor: pointer; }
+        .user-row:hover { background-color: #f8fafc; }
+        .detail-row { background-color: #f8fafc; }
+        .nested-table th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 600; }
+        .nested-table td { font-size: 0.85rem; color: #475569; }
+        .rotate-icon { transition: transform 0.2s; }
+        .expanded .rotate-icon { transform: rotate(180deg); }
+        
+        /* Sortable Headers */
+        .sort-header { cursor: pointer; user-select: none; transition: background-color 0.2s; }
+        .sort-header:hover { background-color: #f1f5f9; color: #334155; }
+        .sort-icon { font-size: 0.7em; margin-left: 4px; color: #94a3b8; }
+        .sort-active .sort-icon { color: #4f46e5; }
+
+        /* Modal Content Font */
+        .article-content { font-family: 'Noto Serif Bengali', serif; line-height: 1.8; white-space: pre-wrap; }
+        
+        /* Progress Bars */
+        .prog-bg { background-color: #e2e8f0; border-radius: 999px; height: 6px; width: 100%; overflow: hidden; margin-top: 6px; }
+        .prog-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+
+        /* Pie Chart */
+        .pie-chart {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: conic-gradient(var(--pie-gradient));
+            position: relative;
+        }
+        .pie-hole {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px; height: 80px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            color: #64748b;
+            flex-direction: column;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-indigo-600 text-white p-2 rounded-lg"><i class="fa-solid fa-gavel"></i></div>
+                    <span class="font-bold text-xl text-slate-800">Zury <span class="text-indigo-600 font-light">/ JS</span></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="https://fountain.toolforge.org/" target="_blank" class="text-slate-400 hover:text-indigo-600"><i class="fa-solid fa-external-link-alt"></i></a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto px-4 py-8 max-w-7xl">
+        
+        <!-- Search -->
+        <div class="max-w-2xl mx-auto text-center mb-10">
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">ইভেন্টের অগ্রগতি ট্র্যাক করুন</h1>
+            <p class="text-slate-500 mb-6">একটি বাংলা উইকিপিডিয়া ইভেন্ট নির্বাচন করুন বা আইডি দিন।</p>
+            
+            <div class="relative shadow-sm flex">
+                <div class="relative flex-grow">
+                    <input type="text" id="eventIdInput" list="eventList" 
+                        class="block w-full pl-4 pr-3 py-3 border border-slate-300 rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 transition" 
+                        placeholder="বাংলা উইকি ইভেন্ট খুঁজুন...">
+                    <datalist id="eventList"></datalist>
+                    <div id="eventListLoading" class="absolute right-3 top-3 text-slate-400 text-xs hidden">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                    </div>
+                </div>
+                <button onclick="fetchEventData()" class="px-6 py-3 bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700 transition font-medium shadow-md">ট্র্যাক করুন</button>
+            </div>
+            <div id="historyContainer" class="mt-4 flex flex-wrap justify-center gap-2 text-xs text-slate-500 hidden"></div>
+        </div>
+
+        <!-- Status & Loading -->
+        <div id="statusMessage" class="text-center hidden mb-8"></div>
+        
+        <!-- Word Count Progress -->
+        <div id="wordCountStatus" class="hidden max-w-2xl mx-auto mb-6 bg-white border border-indigo-100 rounded-lg p-4 flex items-center justify-between text-sm text-indigo-700 shadow-sm animate-fade-in">
+            <div class="flex items-center gap-3">
+                <span class="pulse-dot"></span>
+                <div class="flex flex-col">
+                    <span class="font-bold">শব্দ সংখ্যা যাচাই চলছে (টার্বো মোড)</span>
+                    <span class="text-xs text-slate-500">রিয়েল-টাইমে নিবন্ধ চেক করা হচ্ছে...</span>
+                </div>
+            </div>
+            <span id="wordCountProgress" class="font-bold font-mono text-lg">0%</span>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard" class="hidden animate-fade-in">
+            
+            <!-- Header -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h2 id="eventTitle" class="text-2xl font-bold text-slate-800">লোড হচ্ছে...</h2>
+                    <div class="flex gap-4 mt-2 text-sm text-slate-500">
+                        <span id="eventLang"><i class="fa-solid fa-language"></i> --</span>
+                        <span id="eventDates"><i class="fa-regular fa-calendar"></i> --</span>
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="fetchEventData()" class="text-slate-500 hover:text-indigo-600 text-sm font-medium px-3 py-2 border rounded hover:bg-slate-50 transition"><i class="fa-solid fa-rotate-right mr-1"></i> রিফ্রেশ</button>
+                    <a id="fountainLink" href="#" target="_blank" class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-lg text-sm font-medium transition">ফাউন্টেনে দেখুন &rarr;</a>
+                </div>
+            </div>
+
+            <!-- KPIs -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl p-5 border shadow-sm">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">নিবন্ধ</p>
+                    <p id="totalArticles" class="text-3xl font-bold text-slate-800 mt-1">০</p>
+                </div>
+                <div class="bg-white rounded-xl p-5 border-l-4 border-emerald-500 shadow-sm">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">গৃহীত শব্দ</p>
+                    <p id="totalAcceptedWords" class="text-3xl font-bold text-emerald-600 mt-1">০</p>
+                    <p id="acceptedRate" class="text-xs text-slate-400 mt-1">০% হার</p>
+                </div>
+                <div class="bg-white rounded-xl p-5 border-l-4 border-blue-500 shadow-sm">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">মোট শব্দ</p>
+                    <p id="totalWords" class="text-3xl font-bold text-blue-600 mt-1">০</p>
+                    <p id="participantCount" class="text-xs text-slate-400 mt-1">০ ব্যবহারকারী</p>
+                </div>
+                <div class="bg-white rounded-xl p-5 border-l-4 border-amber-400 shadow-sm">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">অপেক্ষমান</p>
+                    <p id="pendingArticles" class="text-3xl font-bold text-amber-500 mt-1">০</p>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-2 mb-6 border-b border-slate-200 pb-1 overflow-x-auto">
+                <button onclick="switchTab('participants')" id="tab-participants" class="tab-btn active px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 border-transparent hover:text-indigo-600 whitespace-nowrap">অংশগ্রহণকারী</button>
+                <button onclick="switchTab('jury')" id="tab-jury" class="tab-btn px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 border-transparent text-slate-500 hover:text-indigo-600 whitespace-nowrap">জুরি পরিসংখ্যান</button>
+            </div>
+
+            <!-- Tab Content: Participants -->
+            <div id="view-participants" class="tab-content bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-6 border-b bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <h3 class="font-bold">অংশগ্রহণকারীদের পরিসংখ্যান</h3>
+                        <i class="fa-solid fa-users text-indigo-500"></i>
+                    </div>
+                    <div class="flex gap-2">
+                         <button id="copyWikiBtn" class="text-xs bg-white hover:bg-slate-50 text-slate-700 font-medium py-1.5 px-3 rounded border border-slate-300 shadow-sm transition flex items-center gap-1"><i class="fa-solid fa-copy"></i> উইকিটেবিল কপি</button>
+                         <button id="copyDetailBtn" class="text-xs bg-white hover:bg-slate-50 text-slate-700 font-medium py-1.5 px-3 rounded border border-slate-300 shadow-sm transition flex items-center gap-1"><i class="fa-solid fa-file-lines"></i> বিস্তারিত কপি</button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead class="bg-white text-slate-500 font-medium border-b border-slate-200">
+                            <tr>
+                                <th class="px-4 py-4 w-8"></th>
+                                <th class="px-4 py-4 w-10">#</th>
+                                <th class="px-4 py-4 sort-header" onclick="toggleSort('part', 'name')">ব্যবহারকারী <i class="fa-solid fa-sort sort-icon"></i></th>
+                                <th class="px-4 py-4 text-center sort-header" onclick="toggleSort('part', 'acc')">গৃহীত<br>নিবন্ধ <i class="fa-solid fa-sort sort-icon"></i></th>
+                                <th class="px-4 py-4 text-center text-emerald-600 bg-emerald-50/50 border-x border-emerald-100 sort-header" onclick="toggleSort('part', 'wAcc')">গৃহীত<br>শব্দ <i class="fa-solid fa-sort sort-icon"></i></th>
+                                <th class="px-4 py-4 text-center bg-blue-50/50 border-r border-blue-100 sort-header" onclick="toggleSort('part', 'wTotal')">মোট<br>শব্দ <i class="fa-solid fa-sort sort-icon"></i></th>
+                                <th class="px-4 py-4 text-center sort-header" onclick="toggleSort('part', 'pend')">অপেক্ষমান <i class="fa-solid fa-sort sort-icon"></i></th>
+                                <th class="px-4 py-4 text-center sort-header" onclick="toggleSort('part', 'rej')">বাতিল <i class="fa-solid fa-sort sort-icon"></i></th>
+                                <th class="px-4 py-4 text-center sort-header" onclick="toggleSort('part', 'total')">মোট<br>নিবন্ধ <i class="fa-solid fa-sort sort-icon"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="participantsTableBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab Content: Jury -->
+            <div id="view-jury" class="tab-content hidden flex flex-col gap-6">
+                <!-- Jury Table Card -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-6 border-b bg-slate-50 flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold">জুরি পরিসংখ্যান</h3>
+                            <p class="text-xs text-slate-400 mt-1">পর্যালোচনার সংখ্যা এবং অনুমোদনের হার।</p>
+                        </div>
+                        <i class="fa-solid fa-glasses text-indigo-500 text-xl"></i>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-white text-slate-500 font-medium border-b border-slate-200">
+                                <tr>
+                                    <th class="px-6 py-4 sort-header" onclick="toggleSort('jury', 'name')">বিচারক <i class="fa-solid fa-sort sort-icon"></i></th>
+                                    <th class="px-6 py-4 text-center sort-header" onclick="toggleSort('jury', 'rev')">পর্যালোচনা <i class="fa-solid fa-sort sort-icon"></i></th>
+                                    <th class="px-6 py-4 text-center text-emerald-600 sort-header" onclick="toggleSort('jury', 'app')">গৃহীত <i class="fa-solid fa-sort sort-icon"></i></th>
+                                    <th class="px-6 py-4 text-center text-red-500 sort-header" onclick="toggleSort('jury', 'rej')">বাতিল <i class="fa-solid fa-sort sort-icon"></i></th>
+                                    <th class="px-6 py-4 text-center sort-header" onclick="toggleSort('jury', 'rate')">হার <i class="fa-solid fa-sort sort-icon"></i></th>
+                                    <th class="px-6 py-4 w-1/4 sort-header" onclick="toggleSort('jury', 'share')">অবদান <i class="fa-solid fa-sort sort-icon"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody id="juryTableBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Jury Insights Card -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h3 class="font-bold text-slate-800 mb-4">জুরি ইনসাইট</h3>
+                    <div class="flex flex-col md:flex-row items-center justify-around gap-8">
+                        <!-- Pie Chart Container -->
+                        <div class="flex flex-col items-center">
+                            <div id="juryPieChart" class="pie-chart mb-3 shadow-sm">
+                                <div class="pie-hole">
+                                    <span class="font-bold text-lg text-slate-700" id="totalReviewsDisplay">০</span>
+                                    <span class="text-[10px] uppercase">পর্যালোচনা</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-slate-500 font-medium">কাজের বন্টন</p>
+                        </div>
+                        
+                        <!-- Analysis Text -->
+                        <div class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4 w-full md:w-auto">
+                            <div class="p-3 bg-slate-50 rounded border border-slate-100">
+                                <p class="text-xs text-slate-400 uppercase font-bold mb-1">সবচেয়ে সক্রিয়</p>
+                                <p id="mostActiveJuror" class="font-bold text-slate-700 text-lg">--</p>
+                                <p class="text-xs text-slate-500">সর্বোচ্চ সংখ্যক পর্যালোচনা করেছেন।</p>
+                            </div>
+                            <div class="p-3 bg-slate-50 rounded border border-slate-100">
+                                <p class="text-xs text-slate-400 uppercase font-bold mb-1">কঠোরতম</p>
+                                <p id="strictestJuror" class="font-bold text-slate-700 text-lg">--</p>
+                                <p class="text-xs text-slate-500">সর্বনিম্ন অনুমোদনের হার।</p>
+                            </div>
+                            <div class="p-3 bg-slate-50 rounded border border-slate-100">
+                                <p class="text-xs text-slate-400 uppercase font-bold mb-1">সবচেয়ে নমনীয়</p>
+                                <p id="lenientJuror" class="font-bold text-slate-700 text-lg">--</p>
+                                <p class="text-xs text-slate-500">সর্বোচ্চ অনুমোদনের হার।</p>
+                            </div>
+                             <div class="p-3 bg-slate-50 rounded border border-slate-100 flex flex-col justify-center">
+                                <p class="text-xs text-slate-400 uppercase font-bold mb-1">সার্বিক অনুমোদন</p>
+                                <div class="w-full bg-slate-200 rounded-full h-2 mt-1 mb-1">
+                                    <div id="overallApprovalBar" class="bg-emerald-500 h-2 rounded-full" style="width: 0%"></div>
+                                </div>
+                                <p id="overallApprovalText" class="text-xs text-slate-500 text-right">০%</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ARTICLE VIEWER MODAL -->
+    <div id="textModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col transform transition-all">
+            <div class="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-xl">
+                <div>
+                    <h3 id="modalTitle" class="font-bold text-lg text-slate-800">নিবন্ধের শিরোনাম</h3>
+                    <div id="modalMeta" class="flex gap-3 text-xs mt-1">
+                        <span id="modalWordCount" class="font-mono bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">... শব্দ</span>
+                        <span class="text-slate-400">পরিষ্কার পাঠ্য দেখানো হচ্ছে (তথ্যসূত্র/বক্স ছাড়া)</span>
+                    </div>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-red-500 w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="flex-grow overflow-auto p-6 bg-white relative">
+                <div id="modalLoading" class="absolute inset-0 flex items-center justify-center bg-white z-10">
+                    <div class="text-center">
+                        <i class="fa-solid fa-circle-notch fa-spin text-indigo-600 text-3xl mb-3"></i>
+                        <p class="text-slate-500 text-sm">বিষয়বস্তু আনা হচ্ছে...</p>
+                    </div>
+                </div>
+                <div id="modalContent" class="article-content text-slate-800 text-base"></div>
+            </div>
+            <div class="p-4 border-t bg-slate-50 rounded-b-xl flex justify-end">
+                <button onclick="closeModal()" class="px-5 py-2 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-slate-700 text-sm font-medium shadow-sm transition">বন্ধ করুন</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- HELPERS ---
+        function toBn(n) { return n.toString().replace(/\d/g, d => "০১২৩৪৫৬৭৮৯"[d]); }
+        function formatBn(n) { return toBn(n.toLocaleString()); }
+        
+        // --- CONFIG & STATE ---
+        let globalData = null; 
+        
+        // App State for sorting
+        const appState = {
+            users: [],
+            juries: [],
+            sort: {
+                part: { key: 'wAcc', dir: 'desc' }, 
+                jury: { key: 'rev', dir: 'desc' }
+            }
+        };
+
+        const CONFIG = {
+            fountainBase: 'https://fountain.toolforge.org/api/editathons',
+            // forceProxy removed
+        };
+        const parser = new DOMParser();
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadAllEvents();
+            loadHistory();
+            const id = new URLSearchParams(window.location.search).get('id');
+            if(id) { document.getElementById('eventIdInput').value = id; fetchEventData(); }
+        });
+
+        // Toggle listener removed
+
+        // --- TABS & MODAL ---
+        function switchTab(t) {
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('active', 'bg-indigo-600', 'text-white', 'border-indigo-600');
+                b.classList.add('text-slate-500');
+                if(b.id === `tab-${t}`) { b.classList.add('active'); b.classList.remove('text-slate-500'); }
+            });
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+            document.getElementById(`view-${t}`).classList.remove('hidden');
+        }
+
+        // --- SORTING LOGIC ---
+        function toggleSort(table, key) {
+            const current = appState.sort[table];
+            if (current.key === key) {
+                current.dir = current.dir === 'desc' ? 'asc' : 'desc';
+            } else {
+                current.key = key;
+                current.dir = 'desc'; // Default new sort to desc
+            }
+            renderAll();
+        }
+
+        function getSortedData(data, config) {
+            const { key, dir } = config;
+            const sorted = [...data].sort((a, b) => {
+                let valA = a[key];
+                let valB = b[key];
+                if (typeof valA === 'string') {
+                    valA = valA.toLowerCase(); 
+                    valB = valB.toLowerCase();
+                }
+                if (valA < valB) return dir === 'asc' ? -1 : 1;
+                if (valA > valB) return dir === 'asc' ? 1 : -1;
+                return 0;
+            });
+            return sorted;
+        }
+
+        function updateSortIcons(table) {
+            const config = appState.sort[table];
+            const containerId = table === 'part' ? 'view-participants' : 'view-jury';
+            const container = document.getElementById(containerId);
+            
+            container.querySelectorAll('.sort-header').forEach(th => {
+                th.classList.remove('sort-active', 'text-indigo-600');
+                const icon = th.querySelector('.sort-icon');
+                if(icon) {
+                    icon.className = 'fa-solid fa-sort sort-icon'; // Reset
+                }
+                
+                // Check if this th calls the current sort key
+                if (th.getAttribute('onclick').includes(`'${config.key}'`)) {
+                    th.classList.add('sort-active', 'text-indigo-600');
+                    const icon = th.querySelector('.sort-icon');
+                    if(icon) {
+                        icon.className = config.dir === 'asc' ? 'fa-solid fa-sort-up sort-icon' : 'fa-solid fa-sort-down sort-icon';
+                    }
+                }
+            });
+        }
+
+        function renderAll() {
+            // Sort and Render Participants
+            const sortedUsers = getSortedData(appState.users, appState.sort.part);
+            renderParticipantTable(sortedUsers);
+            updateSortIcons('part');
+            setupCopyHandlers(sortedUsers);
+
+            // Sort and Render Jury
+            const sortedJuries = getSortedData(appState.juries, appState.sort.jury);
+            renderJuryTable(sortedJuries);
+            renderJuryAnalysis(appState.juries);
+            updateSortIcons('jury');
+        }
+
+        // --- TEXT CLEANING ---
+        function cleanAndCount(htmlStr, isBn) {
+            const doc = parser.parseFromString(htmlStr, 'text/html');
+            const unwanted = [
+                '.mw-empty-elt', '.mw-editsection', '.reference', '.references', '.reflist', 
+                '.mbox-small', '.ambox', '.navbox', '.catlinks', '.noprint', '.metadata', 
+                '.portal', 'style', 'script', '.thumbinner', '.listing-lastedit'
+            ];
+            unwanted.forEach(s => doc.querySelectorAll(s).forEach(e => e.remove()));
+            
+            const text = doc.body.textContent || '';
+            const words = isBn 
+                ? (text.match(/[ঀ-৿]+/g) || []).length
+                : text.split(/\s+/).filter(w => w.length > 0).length;
+            
+            return { text: text.trim(), words: words };
+        }
+
+        // --- MODAL ---
+        async function viewArticleText(title) {
+            const modal = document.getElementById('textModal');
+            const contentDiv = document.getElementById('modalContent');
+            const loader = document.getElementById('modalLoading');
+            const titleEl = document.getElementById('modalTitle');
+            const countEl = document.getElementById('modalWordCount');
+            const wiki = globalData ? (globalData.wiki || 'bn') : 'bn';
+
+            modal.classList.remove('hidden');
+            loader.classList.remove('hidden');
+            contentDiv.innerHTML = '';
+            titleEl.textContent = title;
+            countEl.textContent = '...';
+
+            const siteUrl = `${wiki}.wikipedia.org`;
+            try {
+                // Cache bust for wiki content as well
+                const url = `https://${siteUrl}/w/api.php?action=parse&page=${encodeURIComponent(title)}&format=json&prop=text&redirects=true&origin=*&_t=${Date.now()}`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if(data.parse && data.parse.text) {
+                    titleEl.textContent = data.parse.title; 
+                    const result = cleanAndCount(data.parse.text['*'], wiki === 'bn');
+                    contentDiv.textContent = result.text;
+                    countEl.textContent = `${formatBn(result.words)} শব্দ (যাচাইকৃত)`;
+                } else {
+                    contentDiv.innerHTML = '<span class="text-red-500">নিবন্ধ পার্স করা সম্ভব হয়নি।</span>';
+                }
+            } catch(e) { contentDiv.innerHTML = `<span class="text-red-500">ত্রুটি: ${e.message}</span>`; } 
+            finally { loader.classList.add('hidden'); }
+        }
+
+        function closeModal() { document.getElementById('textModal').classList.add('hidden'); }
+
+        // --- DATA LOADING ---
+        async function loadAllEvents() {
+            const listEl = document.getElementById('eventList');
+            const loadingEl = document.getElementById('eventListLoading');
+            loadingEl.classList.remove('hidden');
+
+            const CACHE_KEY = 'zury_event_list_bn';
+            const CACHE_DURATION = 60 * 60 * 1000; 
+            const cached = localStorage.getItem(CACHE_KEY);
+            
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (Date.now() - parsed.timestamp < CACHE_DURATION) {
+                        populateEventList(parsed.data);
+                        loadingEl.classList.add('hidden');
+                        return;
+                    }
+                } catch(e) { localStorage.removeItem(CACHE_KEY); }
+            }
+
+            // Cache bust list as well
+            const ts = Date.now();
+            const strategies = [
+                { url: `${CONFIG.fountainBase}?_t=${ts}` },
+                { url: `https://corsproxy.io/?${encodeURIComponent(CONFIG.fountainBase + '?_t=' + ts)}` },
+                { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(CONFIG.fountainBase + '?_t=' + ts)}` }
+            ];
+
+            try {
+                let data = null;
+                for (const s of strategies) {
+                    try {
+                        const res = await fetch(s.url);
+                        if(res.ok) { data = await res.json(); if(data.contents) data = JSON.parse(data.contents); break; }
+                    } catch(e){}
+                }
+                if (!data) throw new Error('Failed');
+                
+                const bnEvents = data.filter(evt => evt.wiki === 'bn').sort((a, b) => new Date(b.start) - new Date(a.start));
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: bnEvents }));
+                populateEventList(bnEvents);
+
+            } catch(e) { console.error(e); } 
+            finally { loadingEl.classList.add('hidden'); }
+        }
+
+        function populateEventList(data) {
+            const listEl = document.getElementById('eventList');
+            listEl.innerHTML = '';
+            data.forEach(evt => {
+                const opt = document.createElement('option');
+                opt.value = evt.code;
+                const dateStr = evt.start ? toBn(evt.start.split('T')[0]) : '';
+                opt.label = `${evt.name} [${dateStr}]`;
+                listEl.appendChild(opt);
+            });
+        }
+
+        async function fetchEventData() {
+            const inputId = document.getElementById('eventIdInput').value.trim();
+            if (!inputId) return alert('আইডি দিন');
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-indigo-600 text-2xl"></i><p class="mt-2">সংযোগ করা হচ্ছে এবং নতুন তথ্য আনা হচ্ছে...</p>';
+            statusEl.classList.remove('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+            
+            // Add Timestamp to Force Fresh Data
+            const ts = Date.now();
+            const targetUrl = `${CONFIG.fountainBase}/${inputId}`;
+            const targetUrlWithTs = `${targetUrl}?_t=${ts}`;
+
+            const strategies = [
+                { url: targetUrlWithTs },
+                { url: `https://corsproxy.io/?${encodeURIComponent(targetUrlWithTs)}` },
+                { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrlWithTs)}` }
+            ];
+            
+            // let active = CONFIG.forceProxy ? strategies.slice(1) : strategies;
+            let resp = null;
+
+            for(const s of strategies) {
+                try {
+                    const r = await fetch(s.url);
+                    if(r.ok) { resp = await r.json(); break; }
+                    else if(r.status===404) throw new Error('404');
+                } catch(e){ if(e.message=='404') { showError('ইভেন্ট পাওয়া যায়নি'); return; } }
+            }
+
+            if(resp) {
+                if(resp.contents) try { resp=JSON.parse(resp.contents); } catch(e){}
+                globalData = resp; 
+                globalData.articles = globalData.articles || [];
+                saveToHistory(inputId);
+                processData(globalData, inputId, true);
+                fetchRealWikiCounts(globalData.articles, globalData.wiki||'en');
+            } else { showError("সংযোগ ব্যর্থ হয়েছে।"); }
+        }
+
+        async function fetchRealWikiCounts(articles, wiki) {
+            const targets = articles.filter(a => !a._realWords);
+            if(targets.length === 0) return;
+            
+            const statusEl = document.getElementById('wordCountStatus');
+            const prog = document.getElementById('wordCountProgress');
+            statusEl.classList.remove('hidden');
+            
+            const siteUrl = `${wiki}.wikipedia.org`;
+            const MAX_CON = 100; 
+            let idx = 0;
+            
+            // Debounce render to animation frames for max smoothness
+            let renderPending = false;
+            const triggerUpdate = () => {
+                if(renderPending) return;
+                renderPending = true;
+                requestAnimationFrame(() => {
+                    processData(globalData, null, false);
+                    renderPending = false;
+                });
+            };
+
+            const worker = async () => {
+                if(idx >= targets.length) return;
+                const task = targets[idx++];
+                const title = task.name || task.article;
+                
+                if(title) {
+                    try {
+                        const url = `https://${siteUrl}/w/api.php?action=parse&page=${encodeURIComponent(title)}&format=json&prop=text&redirects=true&origin=*`;
+                        const res = await fetch(url);
+                        const json = await res.json();
+                        if(json.parse && json.parse.text) {
+                            const result = cleanAndCount(json.parse.text['*'], wiki==='bn');
+                            task._words = result.words;
+                            task._realWords = true;
+                            task._actualTitle = json.parse.title;
+                        }
+                    } catch(e){}
+                }
+                
+                prog.innerText = `${toBn(Math.round((idx/targets.length)*100))}%`;
+                triggerUpdate(); // Request a UI update
+                await worker();
+            };
+
+            const pool = Array(Math.min(MAX_CON, targets.length)).fill(0).map(worker);
+            await Promise.all(pool);
+            processData(globalData, null, false); // Final update
+            setTimeout(() => statusEl.classList.add('hidden'), 2000);
+        }
+
+        function processData(data, id, isInit) {
+            const articles = data.articles;
+            let stats = { total: articles.length, acc: 0, rej: 0, pend: 0, wTotal: 0, wAcc: 0 };
+            let usersMap = {}, juriesMap = {};
+            
+            // Initialize Jury Map with new fields
+            if(data.jury) data.jury.forEach(j => juriesMap[j] = {
+                name: j, 
+                rev: 0, 
+                app: 0, // Count approved
+                rej: 0, // Count rejected
+                share: 0, // Workload Share %
+                rate: 0 // Approval Rate %
+            });
+
+            articles.forEach(item => {
+                const u = item.user || 'Unknown';
+                if (!item._words) {
+                     let sz = parseInt(item.view?.size || item.size || 0);
+                     item._words = item.wordcount ? parseInt(item.wordcount) : Math.round(sz / 6);
+                }
+                const w = item._words || 0;
+                if(!usersMap[u]) usersMap[u] = {name:u, sub:0, acc:0, wSub:0, wAcc:0, wRej:0, wTotal:0, pend:0, rej:0, total:0, articles:[]};
+                usersMap[u].sub++; usersMap[u].wSub += w; usersMap[u].wTotal += w; stats.wTotal += w;
+                usersMap[u].articles.push(item);
+
+                // --- 1. DETERMINE STATUS OF ARTICLE ---
+                let isAcc = false, isRej = false, hasMarks = false;
+                
+                // Parse Marks to array
+                let reviews = [];
+                if (Array.isArray(item.marks)) reviews = item.marks.map(m => ({ user: m.user, val: m.marks ? m.marks['0'] : undefined }));
+                else if (item.marks && typeof item.marks === 'object') reviews = Object.keys(item.marks).map(k => ({ user: k, val: item.marks[k] }));
+
+                // Filter valid reviews
+                reviews = reviews.map(r => {
+                    let val = r.val;
+                    if (typeof val === 'object' && val !== null) {
+                        if(val['0'] !== undefined) val = val['0'];
+                        else if(val.value !== undefined) val = val.value;
+                    }
+                    val = Number(val);
+                    return { user: r.user, val: val };
+                });
+
+                if (reviews.length > 0) hasMarks = true;
+
+                reviews.forEach(r => {
+                    if (r.val === 0) isAcc = true;
+                    else if (r.val === 1) isRej = true;
+                });
+
+                let finalStatus = 'pend';
+                if (!hasMarks) { finalStatus = 'pend'; stats.pend++; usersMap[u].pend++; }
+                else if (isAcc) { finalStatus = 'acc'; stats.acc++; stats.wAcc += w; usersMap[u].acc++; usersMap[u].wAcc += w; }
+                else if (isRej) { finalStatus = 'rej'; stats.rej++; usersMap[u].wRej += w; usersMap[u].rej++; }
+                else { finalStatus = 'pend'; stats.pend++; usersMap[u].pend++; }
+                
+                item._status = finalStatus;
+
+                // --- 2. UPDATE JURY STATS ---
+                reviews.forEach(r => {
+                    if(r.user && juriesMap[r.user]) {
+                        const juror = juriesMap[r.user];
+                        juror.rev++;
+                        
+                        // Count Approvals and Rejections
+                        if(r.val === 0) juror.app++;
+                        else if(r.val === 1) juror.rej++;
+                    }
+                });
+            });
+
+            // Final Calculations for Jury Share & Rates
+            const totalJuryReviews = Object.values(juriesMap).reduce((acc, curr) => acc + curr.rev, 0);
+
+            Object.values(juriesMap).forEach(j => {
+                // Approval Rate
+                j.rate = j.rev > 0 ? Math.round((j.app / j.rev) * 100) : 0;
+                // Workload Share
+                j.share = totalJuryReviews > 0 ? ((j.rev / totalJuryReviews) * 100).toFixed(1) : 0;
+            });
+
+            // Calculate User Total Articles
+            Object.values(usersMap).forEach(u => {
+                u.total = u.articles.length;
+            });
+
+            // Save processed data to state
+            appState.users = Object.values(usersMap);
+            appState.juries = Object.values(juriesMap);
+
+            if(isInit) {
+                document.getElementById('eventTitle').innerText = data.name || id;
+                const s = data.start ? new Date(data.start).toLocaleDateString() : '-';
+                const f = data.finish ? new Date(data.finish).toLocaleDateString() : '-';
+                document.getElementById('eventDates').innerText = `${toBn(s)} - ${toBn(f)}`;
+                document.getElementById('eventLang').innerHTML = `<i class="fa-solid fa-language"></i> ${data.wiki||'Wiki'}`;
+                document.getElementById('fountainLink').href = `https://fountain.toolforge.org/editathons/${data.code||id}`;
+                document.getElementById('statusMessage').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                switchTab('participants');
+            }
+
+            document.getElementById('totalArticles').innerText = formatBn(stats.total);
+            document.getElementById('totalAcceptedWords').innerText = formatBn(stats.wAcc);
+            document.getElementById('totalWords').innerText = formatBn(stats.wTotal);
+            document.getElementById('pendingArticles').innerText = formatBn(stats.pend);
+            document.getElementById('acceptedRate').innerText = stats.total>0 ? toBn(Math.round((stats.acc/stats.total)*100))+'% হার' : '০% হার';
+            document.getElementById('participantCount').innerText = formatBn(appState.users.length) + ' ব্যবহারকারী';
+
+            renderAll();
+        }
+
+        function renderParticipantTable(users) {
+            const tbody = document.getElementById('participantsTableBody');
+            tbody.innerHTML = '';
+            users.forEach((u, i) => {
+                let rankClass = i===0?'text-yellow-500 font-bold':(i===1?'text-slate-400 font-bold':(i===2?'text-amber-700 font-bold':'text-slate-500'));
+                
+                const tr = document.createElement('tr');
+                tr.className = "user-row border-b border-slate-50 hover:bg-slate-50 transition";
+                tr.onclick = function() { toggleDetails(i); };
+                tr.innerHTML = `
+                    <td class="px-4 py-4 text-center"><i id="icon-${i}" class="fa-solid fa-chevron-right rotate-icon text-slate-300"></i></td>
+                    <td class="px-4 py-4 ${rankClass}">#${toBn(i+1)}</td>
+                    <td class="px-4 py-4 font-bold text-slate-700">${u.name}</td>
+                    <td class="px-4 py-4 text-center font-bold text-emerald-600">${toBn(u.acc)}</td>
+                    <td class="px-4 py-4 text-center font-mono font-bold text-emerald-700 bg-emerald-50/50 border-x border-emerald-100">${formatBn(u.wAcc)}</td>
+                    <td class="px-4 py-4 text-center font-mono text-slate-700 bg-blue-50/50 border-r border-blue-100">${formatBn(u.wTotal)}</td>
+                    <td class="px-4 py-4 text-center text-slate-500">${toBn(u.pend)}</td>
+                    <td class="px-4 py-4 text-center text-red-400">${toBn(u.rej)}</td>
+                    <td class="px-4 py-4 text-center text-slate-500 font-medium">${toBn(u.total)}</td>
+                `;
+                tbody.appendChild(tr);
+
+                const trDetail = document.createElement('tr');
+                trDetail.id = `detail-${i}`;
+                trDetail.className = "hidden detail-row border-b border-slate-100";
+                
+                let articleRows = '';
+                u.articles.forEach(a => {
+                    let statusColor = a._status=='acc'?'text-emerald-600 font-bold':(a._status=='rej'?'text-red-500':'text-amber-500');
+                    let statusText = a._status=='acc'?'গৃহীত':(a._status=='rej'?'বাতিল':'অপেক্ষমান');
+                    let wordIcon = a._realWords ? '<i class="fa-solid fa-check text-emerald-500 ml-1" title="যাচাইকৃত"></i>' : '';
+                    let title = a._actualTitle ? `${a.name||a.article} <span class="text-xs text-slate-400">(${a._actualTitle})</span>` : (a.name||a.article);
+                    let safeTitle = (a.name || a.article).replace(/'/g, "\\'");
+                    let viewBtn = `<button onclick="event.stopPropagation(); viewArticleText('${safeTitle}')" class="ml-2 text-slate-300 hover:text-indigo-600 transition p-1" title="পরিষ্কার পাঠ্য দেখুন"><i class="fa-regular fa-eye"></i></button>`;
+
+                    articleRows += `<tr class="border-b border-slate-100 last:border-0 hover:bg-slate-100 transition"><td class="py-2 pl-4 flex items-center">${title} ${viewBtn}</td><td class="py-2 text-right font-mono text-xs">${formatBn(a._words)} ${wordIcon}</td><td class="py-2 text-right text-xs uppercase ${statusColor}">${statusText}</td></tr>`;
+                });
+
+                trDetail.innerHTML = `<td colspan="9" class="p-4"><div class="bg-white rounded border border-slate-200 p-4 shadow-inner"><table class="w-full nested-table"><thead><tr><th class="text-left pb-2 pl-4">নিবন্ধের শিরোনাম</th><th class="text-right pb-2">শব্দ সংখ্যা</th><th class="text-right pb-2">স্ট্যাটাস</th></tr></thead><tbody>${articleRows}</tbody></table></div></td>`;
+                tbody.appendChild(trDetail);
+            });
+        }
+
+        function toggleDetails(index) {
+            const detailRow = document.getElementById(`detail-${index}`);
+            const icon = document.getElementById(`icon-${index}`);
+            if (detailRow.classList.contains('hidden')) {
+                detailRow.classList.remove('hidden');
+                icon.classList.add('rotate-180');
+                icon.parentElement.parentElement.classList.add('bg-slate-50'); 
+            } else {
+                detailRow.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+                icon.parentElement.parentElement.classList.remove('bg-slate-50');
+            }
+        }
+
+        function renderJuryTable(juries) {
+            const tbody = document.getElementById('juryTableBody');
+            tbody.innerHTML = '';
+            juries.forEach(j => {
+                tbody.innerHTML += `
+                <tr class="border-b border-slate-50 hover:bg-slate-50">
+                    <td class="p-4 font-bold text-slate-700">${j.name}</td>
+                    <td class="p-4 text-center font-medium text-slate-500">${toBn(j.rev)}</td>
+                    <td class="p-4 text-center text-emerald-600 font-bold">${toBn(j.app)}</td>
+                    <td class="p-4 text-center text-red-500">${toBn(j.rej)}</td>
+                    <td class="p-4 text-center text-xs font-bold text-slate-600 bg-slate-100 rounded">${toBn(j.rate)}%</td>
+                    <td class="p-4">
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-500">${toBn(j.share)}%</span>
+                        </div>
+                        <div class="prog-bg"><div class="prog-fill bg-indigo-500" style="width: ${j.share}%"></div></div>
+                    </td>
+                </tr>`;
+            });
+        }
+
+        function renderJuryAnalysis(juries) {
+            if(!juries || juries.length === 0) return;
+
+            // Sort copies for analysis
+            const byRev = [...juries].sort((a,b) => b.rev - a.rev);
+            const byRate = [...juries].filter(j=>j.rev>0).sort((a,b) => b.rate - a.rate);
+            
+            // Text Stats
+            document.getElementById('mostActiveJuror').innerText = byRev[0].name;
+            document.getElementById('strictestJuror').innerText = byRate.length > 0 ? byRate[byRate.length-1].name : '--';
+            document.getElementById('lenientJuror').innerText = byRate.length > 0 ? byRate[0].name : '--';
+
+            // Total Reviews & Overall Approval
+            const totalRev = juries.reduce((s, j) => s + j.rev, 0);
+            const totalApp = juries.reduce((s, j) => s + j.app, 0);
+            const overallRate = totalRev > 0 ? Math.round((totalApp / totalRev) * 100) : 0;
+            
+            document.getElementById('totalReviewsDisplay').innerText = formatBn(totalRev);
+            document.getElementById('overallApprovalBar').style.width = `${overallRate}%`;
+            document.getElementById('overallApprovalText').innerText = `${toBn(overallRate)}%`;
+
+            // Pie Chart (CSS Conic Gradient)
+            // Generate color palette (indigo shades)
+            const colors = ['#4f46e5', '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff', '#312e81', '#3730a3', '#4338ca'];
+            let gradientStr = '';
+            let currentDeg = 0;
+            
+            byRev.forEach((j, idx) => {
+                if(j.rev === 0) return;
+                const share = parseFloat(j.share); // % string to float
+                const deg = (share / 100) * 360;
+                const color = colors[idx % colors.length];
+                gradientStr += `${color} ${currentDeg}deg ${currentDeg + deg}deg, `;
+                currentDeg += deg;
+            });
+            
+            // Trim trailing comma
+            if(gradientStr) gradientStr = gradientStr.slice(0, -2);
+            else gradientStr = '#e2e8f0 0deg 360deg'; // Empty state
+
+            document.getElementById('juryPieChart').style.setProperty('--pie-gradient', gradientStr);
+        }
+
+        function setupCopyHandlers(users) {
+            document.getElementById('copyWikiBtn').onclick = () => {
+                let txt = '{| class="wikitable sortable"\n! ব্যবহারকারী !! গৃহীত !! অপর্যালোচিত !! বাতিল !! মোট শব্দ !! মোট নিবন্ধ\n';
+                let gA=0, gU=0, gR=0, gT=0, gArt=0;
+                users.forEach(r => {
+                    txt += `|-\n| ${r.name} || ${toBn(r.acc)} || ${toBn(r.pend)} || ${toBn(r.rej)} || ${toBn(r.wTotal)} || ${toBn(r.articles.length)}\n`;
+                    gA+=r.acc; gU+=r.pend; gR+=r.rej; gT+=r.wTotal; gArt+=r.articles.length;
+                });
+                txt += `|-\n! মোট || ${toBn(gA)} || ${toBn(gU)} || ${toBn(gR)} || ${toBn(gT)} || ${toBn(gArt)}\n|}`;
+                navigator.clipboard.writeText(txt).then(() => alert('উইকিটেবিল সারাংশ কপি করা হয়েছে!'));
+            };
+            document.getElementById('copyDetailBtn').onclick = () => {
+                let txt = '';
+                users.forEach(r => {
+                    const accArts = r.articles.filter(a => a._status === 'acc');
+                    if(accArts.length === 0) return;
+                    txt += `=== [[ব্যবহারকারী:${r.name}|${r.name}]] ===\n{| class="wikitable sortable"\n! নিবন্ধ !! শব্দ\n`;
+                    let ut = 0;
+                    accArts.forEach(a => {
+                        txt += `|-\n| ${a._actualTitle||a.name||a.article} || ${toBn(a._words)}\n`;
+                        ut += a._words;
+                    });
+                    txt += `|-\n| মোট শব্দ || ${toBn(ut)}\n|}\n\n`;
+                });
+                navigator.clipboard.writeText(txt).then(() => alert('বিস্তারিত উইকিটেবিল কপি করা হয়েছে!'));
+            };
+        }
+
+        function showError(msg) {
+             document.getElementById('statusMessage').innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded-lg inline-block text-left border border-red-200"><p class="font-bold">ত্রুটি</p><p class="text-sm mt-1">${msg}</p></div>`;
+             document.getElementById('statusMessage').classList.remove('hidden');
+        }
+
+        function saveToHistory(id) {
+            let history = JSON.parse(localStorage.getItem('zury_history') || '[]');
+            if(!history.includes(id)) {
+                history.unshift(id);
+                if(history.length > 5) history.pop();
+                localStorage.setItem('zury_history', JSON.stringify(history));
+                loadHistory();
+            }
+        }
+
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem('zury_history') || '[]');
+            const container = document.getElementById('historyContainer');
+            if(history.length === 0) { container.classList.add('hidden'); return; }
+            container.classList.remove('hidden');
+            container.innerHTML = `<span class="mr-1">সাম্প্রতিক:</span>`;
+            history.forEach(id => {
+                const btn = document.createElement('button');
+                btn.className = "bg-white border border-slate-200 px-2 py-0.5 rounded hover:bg-indigo-50 hover:text-indigo-600 transition cursor-pointer mb-1";
+                btn.innerText = id;
+                btn.onclick = () => { document.getElementById('eventIdInput').value = id; fetchEventData(); };
+                container.appendChild(btn);
+            });
+        }
+    </script>
+</body>
+</html>
