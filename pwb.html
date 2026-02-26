@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pywikibot AWB-Web</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <style>
+        body { 
+            background-color: #f0f2f5; 
+            overflow: hidden; /* App-like feel, no window scroll */
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-size: 0.9rem;
+        }
+
+        /* --- UI COMPONENTS --- */
+        .app-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            gap: 8px;
+            overflow: hidden;
+        }
+
+        .panel {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 2px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        /* --- DIFF VIEW (Top) --- */
+        .diff-section {
+            height: 25%;
+            min-height: 140px;
+            display: flex;
+            gap: 5px;
+            background: #f8f9fa; /* Frame background */
+            padding: 5px;
+            border: 1px solid #bbb;
+        }
+        
+        .diff-pane-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #999;
+            background: white;
+        }
+
+        .diff-header {
+            background: #eee;
+            padding: 2px 5px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .diff-content {
+            flex: 1;
+            font-family: monospace;
+            font-size: 0.8rem;
+            padding: 5px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+
+        /* --- WORKSPACE (Bottom) --- */
+        .workspace-section {
+            flex: 1;
+            display: flex;
+            gap: 8px;
+            overflow: hidden;
+        }
+
+        /* --- LEFT COL (List) --- */
+        .col-left {
+            width: 240px;
+            min-width: 220px;
+            display: flex;
+            flex-direction: column;
+        }
+        .col-left .panel-body {
+            padding: 5px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .list-box {
+            flex: 1;
+            font-family: monospace;
+            font-size: 0.85rem;
+            border: 1px solid #999;
+            resize: none;
+            white-space: pre;
+            padding: 2px;
+        }
+
+        /* --- MIDDLE COL (Controls) --- */
+        .col-middle {
+            width: 340px;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .awb-tabs .nav-link {
+            padding: 4px 10px;
+            font-size: 0.85rem;
+            color: #444;
+            border-radius: 4px 4px 0 0;
+            background: #e9ecef;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            margin-right: 2px;
+        }
+        .awb-tabs .nav-link.active {
+            background: #fff;
+            font-weight: bold;
+            border-bottom: 1px solid white;
+            color: #000;
+        }
+        .awb-tab-content {
+            border: 1px solid #ccc;
+            border-top: none;
+            background: #fff;
+            flex: 1;
+            padding: 8px;
+            overflow-y: auto;
+        }
+
+        /* Grid for Start buttons */
+        .control-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        .btn-awb {
+            background: #f0f0f0;
+            border: 1px solid #999;
+            color: #000;
+            font-size: 0.85rem;
+            padding: 4px;
+        }
+        .btn-awb:hover { background: #e0e0e0; }
+        .btn-awb:active { background: #ccc; }
+        
+        .btn-start { background: #e0e0e0; height: 40px; font-weight: bold; }
+        .btn-save { background: #d4edda; border-color: #28a745; height: 40px; font-weight: bold; }
+        .btn-skip { background: #fff; height: 40px; font-weight: bold; }
+
+        .alerts-box {
+            border: 1px solid #999;
+            height: 80px;
+            background: #fff;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            padding: 2px;
+            margin-bottom: 5px;
+        }
+
+        /* --- RIGHT COL (Editor) --- */
+        .col-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .editor-textarea {
+            flex: 1;
+            font-family: monospace;
+            font-size: 0.9rem;
+            border: 1px solid #999;
+            padding: 5px;
+            resize: none;
+            outline: none;
+        }
+        
+        /* --- STATUS BAR --- */
+        .status-bar {
+            background: #f0f0f0;
+            border-top: 1px solid #999;
+            padding: 2px 5px;
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 24px;
+        }
+
+        /* --- MODAL STYLES --- */
+        .filter-group { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; height: 100%; }
+        .filter-legend { font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; display: block;}
+        .ns-list { height: 150px; overflow-y: auto; border: 1px solid #eee; padding: 5px; }
+
+        /* Helpers */
+        .form-select-xs, .form-control-xs { padding: 2px 5px; font-size: 0.8rem; height: auto; }
+        label { font-size: 0.8rem; margin-bottom: 2px; }
+        
+        /* Dropdown Tweaks for Icons */
+        .dropdown-item i { width: 1.2em; text-align: center; }
+        .dropdown-menu { border-radius: 0; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. TOP HEADER (Login/User) -->
+    <header class="navbar navbar-expand navbar-dark bg-dark py-0 px-2" style="height: 32px; min-height: 32px;">
+        <span class="navbar-brand mb-0 h1" style="font-size: 0.9rem;">Pywikibot AWB-Web</span>
+        <ul class="navbar-nav ms-auto">
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle py-0 d-flex align-items-center" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.85rem;">
+                    <i class="bi bi-person-circle me-1"></i> User
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="userMenu" style="font-size: 0.85rem;">
+                    <li><h6 class="dropdown-header">Personal Info</h6></li>
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-person-badge"></i> Profile</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-sliders"></i> User settings</a></li>
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-globe"></i> Global prefs</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="#"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                </ul>
+            </li>
+        </ul>
+    </header>
+
+    <!-- 2. MENU BAR -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom py-0" style="height: 28px; min-height: 28px;">
+        <div class="container-fluid px-2">
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-0" style="font-size: 0.85rem;">
+                    
+                    <!-- File Menu -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle py-0 px-2" href="#" id="fileDropdown" role="button" data-bs-toggle="dropdown">File</a>
+                        <ul class="dropdown-menu shadow-sm" style="font-size: 0.85rem;">
+                            <li><a class="dropdown-item" href="#">Reset to original default settings</a></li>
+                            <li><a class="dropdown-item" href="#">Open settings...</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#">Save settings</a></li>
+                            <li><a class="dropdown-item" href="#">Save settings as...</a></li>
+                            <li><a class="dropdown-item" href="#">Save settings as default</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#">Refresh status/typos</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#">Exit</a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- View Menu -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle py-0 px-2" href="#" id="viewDropdown" role="button" data-bs-toggle="dropdown">View</a>
+                        <ul class="dropdown-menu shadow-sm" style="font-size: 0.85rem;">
+                            <li><a class="dropdown-item" href="#">Show toolbar <span class="float-end text-muted small ms-3">F1</span></a></li>
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-check"></i> Show control panel <span class="float-end text-muted small">F11</span></a></li>
+                            <li><a class="dropdown-item active" href="#">Enlarge edit box <span class="float-end text-white small">F12</span></a></li>
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-check"></i> Show edit box toolbar <span class="float-end text-muted small">F10</span></a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#">Display false positives button</a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- List Menu -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle py-0 px-2" href="#" id="listDropdown" role="button" data-bs-toggle="dropdown">List</a>
+                        <ul class="dropdown-menu shadow-sm" style="font-size: 0.85rem;">
+                            <li><label class="dropdown-item" style="cursor:pointer;">
+                                <input type="file" id="import-file" hidden onchange="importList(this)">
+                                <i class="bi bi-folder2-open"></i> Import from text/csv
+                            </label></li>
+                            <li><a class="dropdown-item" href="#" onclick="exportList()"><i class="bi bi-save"></i> Save/Export List</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="listOp('sort')"><i class="bi bi-sort-alpha-down"></i> Sort Alphabetically</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="listOp('dedupe')"><i class="bi bi-files"></i> Remove Duplicates</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="listOp('shuffle')"><i class="bi bi-shuffle"></i> Shuffle</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="clearList()"><i class="bi bi-x-circle"></i> Clear List</a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Tools Menu (Plugins + Extras) -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle py-0 px-2 fw-bold text-primary" href="#" id="toolsDropdown" role="button" data-bs-toggle="dropdown">Tools</a>
+                        <ul class="dropdown-menu shadow-sm" style="font-size: 0.85rem;">
+                            <li><h6 class="dropdown-header">Modes</h6></li>
+                            <li><a class="dropdown-item" href="#" onclick="selectTool('Standard')"><i class="bi bi-card-text"></i> Standard (Page Processor)</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="selectTool('Find and Replace')"><i class="bi bi-search"></i> Find and Replace</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="selectTool('Category Management')"><i class="bi bi-diagram-3"></i> Category Management</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="selectTool('Import')"><i class="bi bi-box-arrow-in-down"></i> Import (XML/CSV)</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="selectTool('Link Fixer')"><i class="bi bi-link-45deg"></i> Link Fixer</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Utilities</h6></li>
+                            <li><a class="dropdown-item d-flex justify-content-between align-items-center" href="#"><span>Make module</span> <span class="text-muted small">Ctrl+M</span></a></li>
+                            <li><a class="dropdown-item d-flex justify-content-between align-items-center" href="#"><span>External processing</span> <span class="text-muted small">Ctrl+E</span></a></li>
+                            <li><a class="dropdown-item d-flex justify-content-between align-items-center" href="#"><span>Regex tester</span> <span class="text-muted small">Ctrl+Shift+T</span></a></li>
+                            <li><a class="dropdown-item d-flex justify-content-between align-items-center" href="#"><span>Database scanner</span> <span class="text-muted small">Ctrl+Shift+D</span></a></li>
+                            <li><a class="dropdown-item" href="#">List comparer</a></li>
+                            <li><a class="dropdown-item" href="#">List splitter</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#">Reset saved/skipped counts</a></li>
+                            <li><a class="dropdown-item" href="#">Submit stats</a></li>
+                        </ul>
+                    </li>
+
+                    <!-- Options Menu (Rebuilt) -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle py-0 px-2" href="#" id="optionsDropdown" role="button" data-bs-toggle="dropdown">Options</a>
+                        <ul class="dropdown-menu shadow-sm" style="font-size: 0.85rem; min-width: 280px;">
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg invisible"></i> <span class="flex-grow-1">Preferences...</span> <span class="text-muted small">Ctrl+P</span></a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg invisible"></i> Default Edit Summaries...</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg invisible"></i> Auto save settings file every 10 pages</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg invisible"></i> <span class="flex-grow-1">Use pre-parse mode</span> <span class="text-muted small">Ctrl+Shift+E</span></a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg text-primary"></i> Follow redirects</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg text-primary"></i> Apply changes automatically</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg invisible"></i> Auto focus end of the edit box</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg invisible"></i> Do not use section edit summaries</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg text-primary"></i> Restrict {{DEFAULTSORT}} change/addition</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg text-primary"></i> Restrict orphan tag addition to linkless pages</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg invisible"></i> Do not apply WP:MOS fixes</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg invisible"></i> Highlight syntax in edit box</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg invisible"></i> Highlight Find matches</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg invisible"></i> Highlight errors</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg text-primary"></i> Mark all as minor</a></li>
+                            <!-- Watchlist Submenu Simulation -->
+                            <li>
+                                <a class="dropdown-item d-flex gap-2 align-items-center justify-content-between" href="#">
+                                    <span class="d-flex gap-2 align-items-center"><i class="bi bi-dot"></i> Leave watchlist unchanged</span>
+                                    <i class="bi bi-caret-right-fill small text-muted"></i>
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg text-primary"></i> Sort interwiki links</a></li>
+                            <li><a class="dropdown-item d-flex gap-2 align-items-center" href="#"><i class="bi bi-check-lg text-primary"></i> Replace reference tags</a></li>
+                        </ul>
+                    </li>
+
+                    <!-- Help Menu -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle py-0 px-2" href="#" id="helpDropdown" role="button" data-bs-toggle="dropdown">Help</a>
+                        <ul class="dropdown-menu shadow-sm" style="font-size: 0.85rem;">
+                            <li><a class="dropdown-item d-flex justify-content-between align-items-center" href="#"><span>Help...</span> <span class="text-muted small">F1</span></a></li>
+                            <li><a class="dropdown-item" href="#">Usage statistics</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#">Check for updates</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#">About Pywikibot AWB-Web</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="app-container">
+        
+        <!-- 3. DIFF VIEW (Top) -->
+        <div class="diff-section">
+            <div class="diff-pane-wrapper">
+                <div class="diff-header">Line 57:</div>
+                <div class="diff-content" id="diff-old" style="background: #fff5f5;">- [[Old Link]]</div>
+            </div>
+            <div class="diff-pane-wrapper">
+                <div class="diff-header">Line 57:</div>
+                <div class="diff-content" id="diff-new" style="background: #f0fff4;">+ [[New Link]]</div>
+            </div>
+        </div>
+
+        <!-- 4. MAIN WORKSPACE -->
+        <div class="workspace-section">
+            
+            <!-- LEFT COLUMN: Source & List -->
+            <div class="col-left panel">
+                <div class="panel-body">
+                    <label>Source:</label>
+                    <select id="generator-select" class="form-select form-select-xs">
+                        <option value="">-- Select Source --</option>
+                        {% set current_group = None %}
+                        {% for key, config in generators.items() %}
+                            {% if config.group != current_group %}
+                                {% if current_group is not none %}</optgroup>{% endif %}
+                                <optgroup label="{{ config.group }}">
+                                {% set current_group = config.group %}
+                            {% endif %}
+                            <option value="{{ key }}">{{ config.name }}</option>
+                        {% endfor %}
+                        </optgroup>
+                    </select>
+
+                    <!-- Dynamic inputs container -->
+                    <div id="dynamic-inputs" class="border p-1 bg-light small" style="max-height: 120px; overflow-y: auto; display: none;"></div>
+
+                    <button class="btn btn-awb w-100 mb-1" onclick="runGenerator()">
+                        <span id="gen-spinner" class="spinner-border spinner-border-sm d-none"></span> Make list
+                    </button>
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                        <label>List (<span id="list-count">0</span>)</label>
+                    </div>
+                    
+                    <textarea id="page-list-area" class="list-box"></textarea>
+                    
+                    <div class="d-flex gap-1 mt-1">
+                         <button class="btn btn-awb flex-grow-1" onclick="document.querySelector('#page-list-area').value = ''; updateCount();">Remove</button>
+                         <button class="btn btn-awb flex-grow-1" data-bs-toggle="modal" data-bs-target="#filterModal">Filter</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MIDDLE COLUMN: Controls -->
+            <div class="col-middle">
+                <!-- Tabs -->
+                <ul class="nav nav-tabs awb-tabs" role="tablist">
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-options">Options</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-more">More...</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-skip">Skip</a></li>
+                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-start">Start</a></li>
+                </ul>
+
+                <div class="tab-content awb-tab-content">
+                    
+                    <!-- Start Tab -->
+                    <div class="tab-pane fade show active" id="tab-start">
+                        <div class="mb-2">
+                            <label>Default Summary</label>
+                            <select class="form-select form-select-xs">
+                                <option>clean up</option>
+                                <option>fixing links</option>
+                                <option>typo fixing</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Moved Options & Existing Start Options -->
+                        <div class="row g-1 mb-2">
+                            <div class="col-6">
+                                <div class="form-check small">
+                                    <input class="form-check-input" type="checkbox" id="chk-start-lock" disabled>
+                                    <label class="form-check-label" for="chk-start-lock">Lock</label>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-check small">
+                                    <input class="form-check-input" type="checkbox" id="chk-start-minor" checked>
+                                    <label class="form-check-label" for="chk-start-minor">Minor edit</label>
+                                </div>
+                            </div>
+                            <!-- Moved from Options tab -->
+                            <div class="col-6">
+                                <div class="form-check small">
+                                    <input class="form-check-input" type="checkbox" id="chk-start-autosave">
+                                    <label class="form-check-label" for="chk-start-autosave">Auto-save</label>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-check small">
+                                    <input class="form-check-input" type="checkbox" id="chk-start-bot" checked>
+                                    <label class="form-check-label" for="chk-start-bot">Mark as bot</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Statistics Mockup -->
+                        <div class="small text-muted mb-2">
+                            <div>Words: 192</div>
+                            <div>Links: 15</div>
+                        </div>
+
+                        <!-- Action Buttons Grid -->
+                        <div class="control-grid">
+                            <button class="btn btn-awb btn-start">Start</button>
+                            <button class="btn btn-awb">Stop</button>
+                            
+                            <button class="btn btn-awb">Preview</button>
+                            <button class="btn btn-awb">Diff</button>
+                            
+                            <button class="btn btn-awb">Watch</button>
+                            <button class="btn btn-awb">Move</button>
+                            
+                            <button class="btn btn-awb">Protect</button>
+                            <button class="btn btn-awb">Delete</button>
+                        </div>
+                        
+                        <div class="d-grid gap-2 mb-2">
+                            <button class="btn btn-awb btn-skip">Skip</button>
+                            <button class="btn btn-awb btn-save" onclick="alert('Save triggered!')">Save</button>
+                        </div>
+
+                        <!-- Alerts Box -->
+                        <label>Alerts</label>
+                        <div class="alerts-box">
+                            <div class="text-danger">Multiple wiki-links:</div>
+                            <div class="ps-2">Azərbaycan (2)</div>
+                        </div>
+
+                        <!-- Find/Replace (Mini) -->
+                        <div class="mt-2 border-top pt-2">
+                            <label>Find:</label>
+                            <div class="input-group input-group-sm mb-1">
+                                <input type="text" class="form-control form-control-xs">
+                                <button class="btn btn-outline-secondary btn-xs">Find</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Options Tab (Dynamic Tool Options) -->
+                    <div class="tab-pane fade" id="tab-options">
+                        
+                        <!-- Tool Specific Section -->
+                        <h6 class="border-bottom pb-1 mb-2 text-primary d-flex justify-content-between align-items-center" style="font-size:0.8rem">
+                            <span id="tool-header">Tool: Standard</span>
+                            <i class="bi bi-gear-fill text-muted"></i>
+                        </h6>
+
+                        <!-- 1. Standard -->
+                        <div id="opt-standard" class="tool-opt-panel">
+                            <p class="text-muted small fst-italic">Standard page processing enabled. No extra tool configuration needed.</p>
+                        </div>
+
+                        <!-- 2. Find and Replace -->
+                        <div id="opt-findreplace" class="tool-opt-panel" style="display:none;">
+                            <div class="mb-2">
+                                <label>Find:</label>
+                                <input type="text" class="form-control form-control-xs">
+                            </div>
+                            <div class="mb-2">
+                                <label>Replace with:</label>
+                                <input type="text" class="form-control form-control-xs">
+                            </div>
+                            <div class="form-check small">
+                                <input type="checkbox" class="form-check-input"> <label>Regex Mode</label>
+                            </div>
+                            <div class="form-check small">
+                                <input type="checkbox" class="form-check-input"> <label>Case Sensitive</label>
+                            </div>
+                            <div class="form-check small">
+                                <input type="checkbox" class="form-check-input"> <label>Ignore outside text</label>
+                            </div>
+                        </div>
+
+                        <!-- 3. Category Management -->
+                        <div id="opt-catmanagement" class="tool-opt-panel" style="display:none;">
+                            <div class="mb-2">
+                                <label>Mode:</label>
+                                <select class="form-select form-select-xs">
+                                    <option>Add Category</option>
+                                    <option>Remove Category</option>
+                                    <option>Replace Category</option>
+                                </select>
+                            </div>
+                            <div class="mb-2">
+                                <label>Category Name:</label>
+                                <input type="text" class="form-control form-control-xs" placeholder="Category:...">
+                            </div>
+                            <div class="form-check small">
+                                <input type="checkbox" class="form-check-input"> <label>Sort Key</label>
+                            </div>
+                        </div>
+                        
+                         <!-- 4. Link Fixer -->
+                         <div id="opt-linkfixer" class="tool-opt-panel" style="display:none;">
+                            <div class="form-check small">
+                                <input type="checkbox" class="form-check-input" checked> <label>Fix redirects</label>
+                            </div>
+                            <div class="form-check small">
+                                <input type="checkbox" class="form-check-input"> <label>Convert HTML to Wiki syntax</label>
+                            </div>
+                             <div class="form-check small">
+                                <input type="checkbox" class="form-check-input"> <label>Simplify links</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- More Tab (Updated from Images) -->
+                    <div class="tab-pane fade" id="tab-more">
+                        
+                        <!-- Append/Prepend Section (Image 4) -->
+                        <div class="border p-2 bg-light mb-2 rounded-1">
+                            <h6 class="small fw-bold text-primary border-bottom pb-1 mb-2">Append/Prepend text</h6>
+                            <div class="d-flex align-items-center mb-1">
+                                <div class="form-check small me-3">
+                                    <input type="checkbox" class="form-check-input" id="chk-append-enable">
+                                    <label class="form-check-label fw-bold" for="chk-append-enable">Enabled</label>
+                                </div>
+                                <div class="small">
+                                    <div class="form-check form-check-inline me-1">
+                                        <input class="form-check-input" type="radio" name="append-mode" id="rad-append" checked>
+                                        <label class="form-check-label" for="rad-append">Append</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="append-mode" id="rad-prepend">
+                                        <label class="form-check-label" for="rad-prepend">Prepend</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <textarea class="form-control form-control-sm mb-2" rows="2" style="font-family:monospace; font-size:0.8rem;"></textarea>
+                            <div class="d-flex justify-content-between align-items-center small">
+                                <div class="d-flex align-items-center">
+                                    <span class="me-1 text-muted">Use</span>
+                                    <input type="number" class="form-control form-control-xs text-center p-0" value="2" style="width:35px;">
+                                    <span class="ms-1 text-muted">newlines</span>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="chk-meta-sort">
+                                    <label class="form-check-label" for="chk-meta-sort">Sort meta data after</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Disambiguation Section (Image 5) -->
+                        <div class="border p-2 bg-light rounded-1">
+                             <div class="form-check small mb-2">
+                                <input class="form-check-input" type="checkbox" id="chk-disambig-enable">
+                                <label class="form-check-label fw-bold" for="chk-disambig-enable">Enable disambiguation</label>
+                            </div>
+                            
+                            <label class="small text-muted mb-0">Link to disambiguate</label>
+                            <div class="input-group input-group-sm mb-2">
+                                <input type="text" class="form-control form-control-xs">
+                                <button class="btn btn-outline-secondary btn-xs px-2">Load links</button>
+                            </div>
+                            
+                            <label class="small text-muted mb-0">Variants</label>
+                            <div class="mb-2">
+                                <textarea class="form-control form-control-sm" rows="3" readonly style="background:#e9ecef"></textarea>
+                            </div>
+                            
+                            <div class="form-check small mb-1">
+                                <input class="form-check-input" type="checkbox" id="chk-skip-no-disambig">
+                                <label class="form-check-label" for="chk-skip-no-disambig">Skip page when no disambiguations made</label>
+                            </div>
+                             <div class="d-flex align-items-center small text-muted">
+                                <span class="me-1">Use &plusmn;</span>
+                                <input type="number" class="form-control form-control-xs text-center p-0" value="20" style="width:35px;">
+                                <span class="ms-1">characters for context</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Skip Tab (Image 3 - Already mostly matched but confirming) -->
+                    <div class="tab-pane fade" id="tab-skip">
+                        <!-- Text Section -->
+                        <h6 class="border-bottom pb-1 mb-2 text-primary" style="font-size:0.8rem">Text</h6>
+                        <div class="mb-2">
+                            <div class="d-flex align-items-center mb-1">
+                                <div class="form-check me-2">
+                                    <input class="form-check-input" type="checkbox" id="skip-contains">
+                                    <label class="form-check-label" for="skip-contains">Contains:</label>
+                                </div>
+                                <input type="text" class="form-control form-control-xs flex-grow-1">
+                            </div>
+                            <div class="d-flex gap-2 ps-3 mb-2 small text-muted">
+                                <div class="form-check"><input type="checkbox" class="form-check-input"> <label>Regex</label></div>
+                                <div class="form-check"><input type="checkbox" class="form-check-input"> <label>Case sensitive</label></div>
+                                <div class="form-check"><input type="checkbox" class="form-check-input"> <label>Check after</label></div>
+                            </div>
+
+                            <div class="d-flex align-items-center mb-1">
+                                 <div class="form-check me-2">
+                                    <input class="form-check-input" type="checkbox" id="skip-not-contains">
+                                    <label class="form-check-label" for="skip-not-contains">Doesn't contain:</label>
+                                </div>
+                                <input type="text" class="form-control form-control-xs flex-grow-1">
+                            </div>
+                            <div class="d-flex gap-2 ps-3 small text-muted">
+                                <div class="form-check"><input type="checkbox" class="form-check-input"> <label>Regex</label></div>
+                                <div class="form-check"><input type="checkbox" class="form-check-input"> <label>Case sensitive</label></div>
+                                <div class="form-check"><input type="checkbox" class="form-check-input"> <label>Check after</label></div>
+                            </div>
+                        </div>
+
+                        <!-- General Skip Options -->
+                        <h6 class="border-bottom pb-1 mb-2 mt-3 text-primary" style="font-size:0.8rem">General skip options</h6>
+                        <div class="row g-1 small">
+                            <div class="col-6"><div class="form-check"><input type="checkbox" class="form-check-input"> <label>Page is in use</label></div></div>
+                            <div class="col-6"><div class="form-check"><input type="checkbox" class="form-check-input"> <label>Edit blocked by spam filter</label></div></div>
+                            <div class="col-12"><div class="form-check"><input type="checkbox" class="form-check-input"> <label>Page contains no links</label></div></div>
+                            
+                            <div class="col-12 mt-1">
+                                <div class="form-check"><input type="checkbox" class="form-check-input" id="skip-no-changes"> <label>No changes are made</label></div>
+                                <div class="ps-3 border-start ms-1 mt-1">
+                                    <div class="row g-1">
+                                         <div class="col-6"><div class="form-check"><input type="checkbox" class="form-check-input"> <label>Only whitespace</label></div></div>
+                                         <div class="col-6"><div class="form-check"><input type="checkbox" class="form-check-input"> <label>Only casing</label></div></div>
+                                         <div class="col-6"><div class="form-check"><input type="checkbox" class="form-check-input" checked> <label>Only genfixes</label></div></div>
+                                         <div class="col-6"><div class="form-check"><input type="checkbox" class="form-check-input"> <label>Only minor genfixes</label></div></div>
+                                         <div class="col-12"><div class="form-check"><input type="checkbox" class="form-check-input"> <label>Only cosmetic changes</label></div></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6 mt-1"><div class="form-check"><input type="checkbox" class="form-check-input"> <label>Page is redirect</label></div></div>
+                            <div class="col-6 mt-1"><div class="form-check"><input type="checkbox" class="form-check-input"> <label>No alerts</label></div></div>
+                        </div>
+
+                        <!-- Page Existence -->
+                        <h6 class="border-bottom pb-1 mb-2 mt-3 text-primary" style="font-size:0.8rem">Page</h6>
+                        <div class="d-flex gap-3 small">
+                            <div class="form-check"><input type="radio" name="page-exist" class="form-check-input" id="page-exists"> <label for="page-exists">Exists</label></div>
+                            <div class="form-check"><input type="radio" name="page-exist" class="form-check-input" id="page-not-exists" checked> <label for="page-not-exists">Doesn't exist</label></div>
+                            <div class="form-check"><input type="radio" name="page-exist" class="form-check-input" id="page-dont-care"> <label for="page-dont-care">Don't care</label></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Editor -->
+            <div class="col-right">
+                <ul class="nav nav-tabs awb-tabs" role="tablist">
+                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-edit">Edit box</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-history">History</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-links">What links here</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs">Logs</a></li>
+                </ul>
+                <div class="tab-content awb-tab-content d-flex flex-column p-0">
+                    <div class="tab-pane fade show active flex-grow-1 d-flex flex-column" id="tab-edit" style="height:100%">
+                         <div class="bg-light border-bottom small px-2 py-1">/* Section */ Summary preview</div>
+                        <textarea id="article-text" class="editor-textarea border-0" placeholder="{{Infobox Film..."></textarea>
+                    </div>
+                    <div class="tab-pane fade p-3" id="tab-history">
+                        <p class="text-muted">History view not implemented.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div> <!-- End Workspace -->
+
+    </div> <!-- End App Container -->
+
+    <!-- 5. STATUS BAR -->
+    <div class="status-bar">
+        <div>Pages/min: 0 &nbsp;|&nbsp; Edits/min: 0</div>
+        <div>Edits: 0 &nbsp;|&nbsp; Skipped: 0 &nbsp;|&nbsp; Ignored: 0</div>
+        <div>Mode: <strong class="text-success">Ready</strong></div>
+        <div>en.wikipedia &nbsp; <span class="badge bg-success" style="font-size:0.6rem;">Logged In</span></div>
+    </div>
+
+    <!-- FILTER MODAL -->
+    <div class="modal fade" id="filterModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content rounded-0">
+                <div class="modal-header py-2 bg-light">
+                    <h5 class="modal-title fs-6">List Filter</h5>
+                    <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    <div class="row g-2">
+                        <!-- Namespace Column -->
+                        <div class="col-md-5">
+                            <div class="filter-group bg-white">
+                                <span class="filter-legend">Namespaces to keep</span>
+                                <div class="row g-0">
+                                    <div class="col-6">
+                                        <div class="form-check small"><input class="form-check-input" type="checkbox"> <label>Subject</label></div>
+                                        <div class="ns-list" id="ns-subject-list">
+                                            <!-- JS will populate -->
+                                            <div class="form-check"><input class="form-check-input" type="checkbox" checked> <label>Main/Article</label></div>
+                                            <div class="form-check"><input class="form-check-input" type="checkbox"> <label>User</label></div>
+                                            <div class="form-check"><input class="form-check-input" type="checkbox"> <label>Wikipedia</label></div>
+                                            <div class="form-check"><input class="form-check-input" type="checkbox"> <label>File</label></div>
+                                            <div class="form-check"><input class="form-check-input" type="checkbox"> <label>Template</label></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check small"><input class="form-check-input" type="checkbox"> <label>Talk</label></div>
+                                        <div class="ns-list" id="ns-talk-list">
+                                            <div class="form-check"><input class="form-check-input" type="checkbox"> <label>Talk</label></div>
+                                            <div class="form-check"><input class="form-check-input" type="checkbox"> <label>User talk</label></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Title Filter Column -->
+                        <div class="col-md-4">
+                            <div class="filter-group bg-white d-flex flex-column gap-2">
+                                <span class="filter-legend">Title</span>
+                                <div>
+                                    <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="chk-remove-contain"> <label>Remove titles containing:</label></div>
+                                    <input type="text" class="form-control form-control-sm" id="txt-remove-contain">
+                                </div>
+                                <div>
+                                    <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" id="chk-keep-contain"> <label>Keep titles containing:</label></div>
+                                    <input type="text" class="form-control form-control-sm" id="txt-keep-contain">
+                                </div>
+                                <div class="form-check small text-muted">
+                                    <input class="form-check-input" type="checkbox"> <label>Regular expressions</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Other Options Column -->
+                        <div class="col-md-3">
+                            <div class="filter-group bg-white">
+                                <span class="filter-legend">Other</span>
+                                <div class="form-check small"><input class="form-check-input" type="checkbox" id="chk-sort" checked> <label>Sort alphabetically</label></div>
+                                <div class="form-check small"><input class="form-check-input" type="checkbox" id="chk-dedupe" checked> <label>Remove duplicates</label></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer py-1 bg-light">
+                    <button type="button" class="btn btn-primary btn-sm px-4" onclick="applyFilter()">Apply</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- CONFIGURATION DATA & JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script id="server-config" type="application/json">
+{{ generators | tojson }}
+</script>
+
+<script>
+    // --- SAFE CONFIGURATION LOADING ---
+    let GENERATORS;
+    try {
+        const rawConfig = document.getElementById('server-config').textContent;
+        GENERATORS = JSON.parse(rawConfig);
+    } catch (e) {
+        console.warn("Using Mock Data.");
+        GENERATORS = {
+            "manual_list": { "name": "Manual List", "group": "Lists", "args": [{"name": "titles", "type": "textarea", "label": "Titles"}] },
+            "category": { "name": "Category", "group": "Categories", "args": [{"name": "cat_name", "type": "text", "label": "Cat Name"}, {"name": "recurse", "type": "checkbox", "label": "Recurse"}] }
+        };
+    }
+
+    // Elements
+    const selectEl = document.getElementById('generator-select');
+    const dynamicContainer = document.getElementById('dynamic-inputs');
+    const listArea = document.getElementById('page-list-area');
+    const listCount = document.getElementById('list-count');
+    const spinner = document.getElementById('gen-spinner');
+
+    // 1. RENDER INPUTS
+    if(selectEl) {
+        selectEl.addEventListener('change', function() {
+            const key = this.value;
+            renderInputs(key);
+        });
+    }
+
+    function renderInputs(key) {
+        dynamicContainer.innerHTML = '';
+        if (!key || !GENERATORS[key]) {
+            dynamicContainer.style.display = 'none';
+            return;
+        }
+
+        dynamicContainer.style.display = 'block';
+        const config = GENERATORS[key];
+
+        config.args.forEach(arg => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mb-1'; 
+
+            const label = document.createElement('label');
+            label.innerText = arg.label;
+            
+            let input;
+            if (arg.type === 'textarea') {
+                input = document.createElement('textarea');
+                input.className = 'form-control form-control-xs';
+                input.rows = 2;
+            } else if (arg.type === 'checkbox') {
+                wrapper.className = 'form-check mb-1';
+                input = document.createElement('input');
+                input.type = 'checkbox';
+                input.className = 'form-check-input';
+                label.className = 'form-check-label small';
+            } else {
+                input = document.createElement('input');
+                input.type = arg.type || 'text';
+                input.className = 'form-control form-control-xs';
+            }
+
+            input.name = arg.name;
+            if(arg.default) input.value = arg.default;
+
+            if (arg.type === 'checkbox') {
+                wrapper.appendChild(input);
+                wrapper.appendChild(label);
+            } else {
+                wrapper.appendChild(label);
+                wrapper.appendChild(input);
+            }
+            dynamicContainer.appendChild(wrapper);
+        });
+    }
+
+    // 2. RUN GENERATOR
+    async function runGenerator() {
+        const key = selectEl.value;
+        if (!key) return;
+
+        const params = {};
+        const inputs = dynamicContainer.querySelectorAll('input, textarea, select');
+        inputs.forEach(input => {
+            if (input.type === 'checkbox') params[input.name] = input.checked;
+            else params[input.name] = input.value;
+        });
+
+        spinner.classList.remove('d-none');
+        
+        try {
+            const res = await fetch('/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gen_type: key, params: params })
+            });
+            const data = await res.json();
+            
+            if (data.status === 'success') {
+                const titles = data.pages.map(p => p.title);
+                listArea.value = titles.join('\n');
+                updateCount();
+            } else {
+                alert("Error: " + data.message);
+            }
+
+        } catch (err) {
+            console.error(err);
+            if (!window.location.host.includes('127.0.0.1')) {
+                 listArea.value = "Abşeron abidəsi (film, 2009)\nButafilm\nKino";
+                 updateCount();
+            }
+        } finally {
+            spinner.classList.add('d-none');
+        }
+    }
+
+    // --- TOOL SELECTION LOGIC ---
+    function selectTool(toolName) {
+        // 1. Update Header
+        document.getElementById('tool-header').innerText = "Tool: " + toolName;
+
+        // 2. Hide all tool panels
+        const panels = document.querySelectorAll('.tool-opt-panel');
+        panels.forEach(p => p.style.display = 'none');
+
+        // 3. Show selected panel
+        let panelId = 'opt-standard'; // default
+        if (toolName === 'Find and Replace') panelId = 'opt-findreplace';
+        else if (toolName === 'Category Management') panelId = 'opt-catmanagement';
+        else if (toolName === 'Link Fixer') panelId = 'opt-linkfixer';
+        
+        const target = document.getElementById(panelId);
+        if(target) target.style.display = 'block';
+
+        // 4. Switch tab to Options to show user the new settings
+        const optionsTab = document.querySelector('a[href="#tab-options"]');
+        const tab = new bootstrap.Tab(optionsTab);
+        tab.show();
+    }
+
+    // --- LIST OPERATIONS ---
+
+    function getList() {
+        return listArea.value.split('\n').filter(line => line.trim() !== '');
+    }
+
+    function setList(arr) {
+        listArea.value = arr.join('\n');
+        updateCount();
+    }
+
+    function updateCount() {
+        listCount.innerText = getList().length;
+    }
+
+    function clearList() {
+        listArea.value = '';
+        updateCount();
+    }
+
+    function listOp(op) {
+        let list = getList();
+        
+        if (op === 'sort') {
+            list.sort();
+        } else if (op === 'dedupe') {
+            list = [...new Set(list)];
+        } else if (op === 'shuffle') {
+            list.sort(() => Math.random() - 0.5);
+        }
+
+        setList(list);
+    }
+
+    function exportList() {
+        const blob = new Blob([listArea.value], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'page_list.txt';
+        a.click();
+    }
+
+    function importList(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            listArea.value = e.target.result;
+            updateCount();
+            input.value = ''; // reset
+        };
+        reader.readAsText(file);
+    }
+
+    // --- FILTER MODAL LOGIC ---
+    function applyFilter() {
+        let list = getList();
+
+        // 1. Remove containing
+        const removeTxt = document.getElementById('txt-remove-contain').value;
+        if (document.getElementById('chk-remove-contain').checked && removeTxt) {
+            list = list.filter(t => !t.includes(removeTxt));
+        }
+
+        // 2. Keep containing
+        const keepTxt = document.getElementById('txt-keep-contain').value;
+        if (document.getElementById('chk-keep-contain').checked && keepTxt) {
+            list = list.filter(t => t.includes(keepTxt));
+        }
+
+        // 3. Dedupe
+        if (document.getElementById('chk-dedupe').checked) {
+            list = [...new Set(list)];
+        }
+
+        // 4. Sort
+        if (document.getElementById('chk-sort').checked) {
+            list.sort();
+        }
+
+        setList(list);
+        
+        // Close modal
+        const modalEl = document.getElementById('filterModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        modal.hide();
+    }
+
+    // Update count on manual type
+    listArea.addEventListener('input', updateCount);
+
+</script>
+
+</body>
+</html>
