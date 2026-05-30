@@ -449,7 +449,12 @@
             titleEl.textContent = title;
             countEl.textContent = '...';
 
-            const siteUrl = `${wiki}.wikibooks.org`;
+            // Extract language (bn) and project (wikibooks/wikipedia) safely
+            const lang = wiki.replace(/wiki.*/, '') || 'bn';
+            let proj = wiki.replace(lang, '');
+            if (proj === 'wiki' || proj === '') proj = 'wikipedia';
+            const siteUrl = `${lang}.${proj}.org`;
+            
             try {
                 // Cache bust for wiki content as well
                 const url = `https://${siteUrl}/w/api.php?action=parse&page=${encodeURIComponent(title)}&format=json&prop=text&redirects=true&origin=*&_t=${Date.now()}`;
@@ -579,7 +584,11 @@
             const prog = document.getElementById('wordCountProgress');
             statusEl.classList.remove('hidden');
             
-            const siteUrl = `${wiki}.wikibooks.org`;
+            // Extract language (bn) and project (wikibooks/wikipedia) safely
+            const lang = wiki.replace(/wiki.*/, '') || 'bn';
+            let proj = wiki.replace(lang, '');
+            if (proj === 'wiki' || proj === '') proj = 'wikipedia';
+            const siteUrl = `${lang}.${proj}.org`;
             const MAX_CON = 150; // Boosted to 150 concurrent requests
             let idx = 0;
             
